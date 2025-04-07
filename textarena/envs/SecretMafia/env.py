@@ -114,13 +114,18 @@ class SecretMafiaEnv(ta.Env):
             f"Team: {role_info['team']}\n"
             f"Description: {role_info['description']}\n\n"
             f"Players: {player_list}\n\n"
-            f"The game progresses through Day and Night phases:\n"
+            f"Game Overview:\n"
+            f"• The game starts with the Night phase, where special roles take their actions\n"
             f"• During the Day phase, there are {self.num_discussion_rounds} rounds of discussion followed by voting\n"
             f"• During discussions, everything you say is automatically broadcasted to all players\n"
             f"• After discussions, all players must vote to eliminate one player\n"
-            f"• During the Night phase, special roles perform their actions\n\n"
-            f"The game ends when either all Mafia members are eliminated (Village wins) or\n"
-            f"Mafia members equal or outnumber Villagers (Mafia wins)\n\n"
+            f"• The game ends when either all Mafia members are eliminated (Village wins) or\n"
+            f"  Mafia members equal or outnumber Villagers (Mafia wins)\n\n"
+            f"All Roles and Their Abilities:\n"
+            f"• Villager: Regular villager with no special abilities. Goal is to identify and eliminate Mafia members.\n"
+            f"• Mafia: During the night, can secretly coordinate (without talking) with other Mafia members to eliminate a player.\n"
+            f"• Doctor: Can protect one player from elimination each night.\n"
+            f"• Detective: Can investigate one player each night to learn if they are Mafia.\n\n"
         )
         
         # Add role-specific information and abilities
@@ -133,7 +138,9 @@ class SecretMafiaEnv(ta.Env):
                 "    • Everything you say is automatically shared with all players\n"
                 "    • You'll vote to eliminate a player at the end of discussions\n\n"
                 "  During NIGHT phase:\n"
-                "    • '[Player X]' - Vote to eliminate Player X (must be a non-Mafia player)\n\n"
+                "    • First, you'll discuss with other Mafia members about who to eliminate\n"
+                "    • Then, you'll vote to eliminate a player (must be a non-Mafia player)\n"
+                "    • Use the format '[Player X]' to vote\n\n"
                 "Your goal is to eliminate enough villagers until Mafia members equal or outnumber the Villagers.\n\n"
             )
         elif role == "Doctor":
@@ -143,7 +150,9 @@ class SecretMafiaEnv(ta.Env):
                 "    • Everything you say is automatically shared with all players\n"
                 "    • You'll vote to eliminate a player at the end of discussions\n\n"
                 "  During NIGHT phase:\n"
-                "    • '[Player X]' - Protect Player X from Mafia elimination tonight\n"
+                "    • You can protect one player from being eliminated by the Mafia\n"
+                "    • Use the format '[Player X]' to protect a player\n"
+                "    • You cannot protect yourself\n\n"
                 "Your goal is to help identify and eliminate all Mafia members.\n\n"
             )
         elif role == "Detective":
@@ -153,8 +162,9 @@ class SecretMafiaEnv(ta.Env):
                 "    • Everything you say is automatically shared with all players\n"
                 "    • You'll vote to eliminate a player at the end of discussions\n\n"
                 "  During NIGHT phase:\n"
-                "    • '[Player X]' - Investigate whether Player X is a Mafia member\n"
-                "      (You'll receive immediate results of your investigation)\n\n"
+                "    • You can investigate one player to learn if they are Mafia\n"
+                "    • Use the format '[Player X]' to investigate a player\n"
+                "    • You'll receive immediate results of your investigation\n\n"
                 "Your goal is to help identify and eliminate all Mafia members.\n\n"
             )
         else:  # Villager
@@ -164,7 +174,8 @@ class SecretMafiaEnv(ta.Env):
                 "    • Everything you say is automatically shared with all players\n"
                 "    • You'll vote to eliminate a player at the end of discussions\n\n"
                 "  During NIGHT phase:\n"
-                "    • You have no special actions during the night phase\n\n"
+                "    • You have no special actions during the night phase\n"
+                "    • You must wait for the day phase to participate\n\n"
                 "Your goal is to help identify and eliminate all Mafia members.\n\n"
             )
         
