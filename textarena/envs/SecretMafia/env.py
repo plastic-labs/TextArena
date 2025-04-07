@@ -115,17 +115,26 @@ class SecretMafiaEnv(ta.Env):
             f"Description: {role_info['description']}\n\n"
             f"Players: {player_list}\n\n"
             f"Game Overview:\n"
-            f"• The game starts with the Night phase, where special roles take their actions\n"
-            f"• During the Day phase, there are {self.num_discussion_rounds} rounds of discussion followed by voting\n"
-            f"• During discussions, everything you say is automatically broadcasted to all players\n"
-            f"• After discussions, all players must vote to eliminate one player\n"
-            f"• The game ends when either all Mafia members are eliminated (Village wins) or\n"
-            f"  Mafia members equal or outnumber Villagers (Mafia wins)\n\n"
             f"All Roles and Their Abilities:\n"
-            f"• Villager: Regular villager with no special abilities. Goal is to identify and eliminate Mafia members.\n"
-            f"• Mafia: During the night, can secretly coordinate (without talking) with other Mafia members to eliminate a player.\n"
-            f"• Doctor: Can protect one player from elimination each night.\n"
-            f"• Detective: Can investigate one player each night to learn if they are Mafia.\n\n"
+            f"    • Villager: Regular villager with no special abilities. Goal is to identify and eliminate Mafia members.\n"
+            f"    • Mafia: During the night, can secretly coordinate (without talking) with other Mafia members to eliminate a player.\n"
+            f"    • Doctor: Can protect one player from elimination each night.\n"
+            f"    • Detective: Can investigate one player each night to learn if they are Mafia.\n\n"
+            f"The game starts with the Night phase, where special roles take their actions\n"
+            f"    • The Mafia can coordinate (without talking) with other Mafia members and vote to eliminate a player\n"
+            f"    • If there is a tie, no one is eliminated\n"
+            f"    • If the Doctor chooses to save the player elected by the Mafia, the player is not eliminated\n\n"
+            f"    • If the Detective investigates a player and they are Mafia, the Detective will know\n\n"
+            f"During the Day phase, there are two parts:\n"
+            f"  1. Private Reflection: Each player gets time to think privately about the game state\n"
+            f"     - Your thoughts during this phase are NOT shared with other players\n"
+            f"     - Use this time to analyze the game and plan your strategy\n"
+            f"  2. Public Discussion: {self.num_discussion_rounds} rounds of open discussion\n"
+            f"     - Everything you say in this phase is visible to ALL players\n"
+            f"     - Be careful about what you reveal and how you present yourself\n"
+            f"After discussions, all players must vote to eliminate one player\n"
+            f"The game ends when either all Mafia members are eliminated (Village wins) or\n"
+            f"Mafia members equal or outnumber Villagers (Mafia wins)\n\n"
         )
         
         # Add role-specific information and abilities
@@ -200,7 +209,7 @@ class SecretMafiaEnv(ta.Env):
                 f"• After this round, you will vote on the final target\n"
                 f"• If you don't agree with a suggestion, you can point to a different player\n"
                 f"• The player with the most suggestions will be the default target for voting\n"
-                f"• If you speak out loud, other players will hear you and know you're mafia"
+                f"• If you speak out loud by saying anything other than '[Player X]', other players will hear you and know you're mafia"
             )
             # send observations to all relevant players
             for pid in mafia_pids:
@@ -263,10 +272,43 @@ class SecretMafiaEnv(ta.Env):
                 self.next_player_ids = [d_pid]
 
 
-        elif new_phase == "Day-Discussion": # TODO add who was killed
+        elif new_phase == "Day-Private-Reflection":
+            # First send private reflection prompt to each player
+            for pid in self.state.game_state["alive_players"]:
+                role = self.state.game_state["player_roles"][pid]
+                reflection_prompt = (
+                    f"Take a moment to reflect privately:\n\n"
+                    f"1. Current State & Position:\n"
+                    f"   - What is your current role and position in the game?\n"
+                    f"   - What are your immediate goals and concerns?\n"
+                    f"   - What can you do to help your team win?\n\n"
+                    f"2. Player Analysis. For each other player:\n"
+                    f"   - Analyze their behavior and decisions so far\n"
+                    f"   - Consider their voting patterns and discussion contributions\n"
+                    f"   - Note any suspicious patterns or inconsistencies\n"
+                    f"   - If you are a villager, do you suspect them?\n\n"
+                    f"3. Perception Check. For each other player:\n"
+                    f"   - How do you think they perceive you?\n"
+                    f"   - If you are mafia, do you think they suspect you?\n"
+                    f"   - How can you maintain or change their perception?\n\n"
+                    f"Take your time to think through these points carefully."
+                )
+                self.state.add_observation(from_id=ta.GAME_ID, to_id=pid, message=reflection_prompt)
+
+            # Set up player order for reflection
+            next_players = self.state.game_state["alive_players"]
+            random.shuffle(next_players)
+            self.next_player_ids = next_players
+
+        elif new_phase == "Day-Discussion":
+            # Send public discussion prompt
             discussion_observation = (
-                f"For the next {self.num_discussion_rounds} you can converse "
-                f"freely with the other players to decide who you ultimatly want to vote out"
+                f"PUBLIC DISCUSSION PHASE - ALL MESSAGES WILL BE SEEN BY EVERYONE\n\n"
+                f"IMPORTANT: Everything you say in this phase will be visible to ALL players.\n"
+                f"Be careful about what you reveal and how you present yourself.\n"
+                f"Remember that other players will analyze your words and behavior.\n\n"
+                f"For the next {self.num_discussion_rounds} rounds, you can converse "
+                f"freely with the other players to decide who you ultimately want to vote out."
             )
             self.state.add_observation(from_id=ta.GAME_ID, to_id=-1, message=discussion_observation)
             next_players = self.state.game_state["alive_players"]
@@ -285,6 +327,8 @@ class SecretMafiaEnv(ta.Env):
             self.next_player_ids = self.state.game_state["alive_players"].copy()
             random.shuffle(self.next_player_ids)
 
+        elif new_phase == "Death-Announcement":
+            new_phase = "Day-Private-Reflection"
         else:
             raise Exception(f"{new_phase} phase not recognized.")
 
@@ -312,31 +356,35 @@ class SecretMafiaEnv(ta.Env):
                 elif detective_pid in self.state.game_state["alive_players"]:
                     new_phase = "Night-Detective"
                 else:
-                    new_phase = "Day-Discussion"
+                    new_phase = "Day-Private-Reflection"
             elif current_phase == "Night-Doctor":
                 if detective_pid in self.state.game_state["alive_players"]:
                     new_phase = "Night-Detective"
                 else:
-                    new_phase = "Day-Discussion"
+                    new_phase = "Day-Private-Reflection"
             elif current_phase == "Night-Detective":
+                new_phase = "Death-Announcement"
+            elif current_phase == "Death-Announcement":
+                new_phase = "Day-Private-Reflection"
+            elif current_phase == "Day-Private-Reflection":
                 new_phase = "Day-Discussion"
             elif current_phase == "Day-Discussion":
                 new_phase = "Day-Voting"
             elif current_phase == "Day-Voting":
-                new_phase = "Night-Mafia"
-
+                new_phase = "Night-Mafia-Discussion"
 
             # check for winning conditions on relevant transition phases
-            if new_phase=="Day-Discussion" or new_phase=="Night-Mafia":
+            if new_phase=="Death-Announcement":
                 # add observation
                 tbe_pid = self.state.game_state["to_be_eliminated"]
                 if tbe_pid is None:
                     observation = f"No player has been eliminated."
                 else:
                     observation = f"Player {tbe_pid} has been eliminated."
+                    # Remove player from alive_players
+                    if tbe_pid in self.state.game_state["alive_players"]:
+                        self.state.game_state["alive_players"].remove(tbe_pid)
                 self.state.add_observation(from_id=ta.GAME_ID, to_id=-1, message=observation)
-                # remove player from alive
-                self.state.game_state["alive_players"] = [pid for pid in self.state.game_state["alive_players"] if pid != self.state.game_state["to_be_eliminated"]]
                 # reset votes
                 self.state.game_state["votes"] = {}
                 # reset to be eliminated
@@ -379,6 +427,8 @@ class SecretMafiaEnv(ta.Env):
         # check game phase 
         if self.state.game_state["phase"] == "Night-Mafia-Discussion":
             self._night_mafia_discussion(current_pid=current_pid, action=action)
+        elif self.state.game_state["phase"] == "Day-Private-Reflection":
+            self._day_private_reflection(current_pid=current_pid, action=action)
         elif self.state.game_state["phase"] == "Day-Discussion":
             self._day_discussion(current_pid=current_pid, action=action)
 
@@ -425,8 +475,12 @@ class SecretMafiaEnv(ta.Env):
         else:
             return top_candidates[0]
 
+    def _day_private_reflection(self, current_pid, action):
+        """ Handle private reflection - messages are only sent to the player themselves """
+        self.state.add_observation(from_id=current_pid, to_id=current_pid, message=action)
+
     def _day_discussion(self, current_pid, action):
-        """ simply broadcast messages to all """
+        """ Handle public discussion - all messages are broadcast to everyone """
         self.state.add_observation(from_id=current_pid, to_id=-1, message=action)
 
     def _day_voting(self, current_pid, action):
