@@ -58,22 +58,20 @@ class SecretMafiaEnv(ta.Env):
         # self.num_discussion_rounds = num_players * 3
         
         game_state = {
-            "phase": "Night-Mafia",
+            "phase": "Night-Mafia-Discussion",
             "day_number": 1,
             "alive_players": list(range(num_players)),
             "player_roles": self.player_roles,
             "votes": {},
             "to_be_eliminated": None,
+            "kill_suggestions": {},
         }
         
         self.state.reset(seed=seed, game_state=game_state, player_prompt_function=self._generate_player_prompt)
 
-
-        # the game starts with the mafia making their first vote
-        self._phase_transition_player_prompts(new_phase="Night-Mafia")
+        # the game starts with the mafia discussion
+        self._phase_transition_player_prompts(new_phase="Night-Mafia-Discussion")
         self._transition_current_pid()
-
-
 
     def _assign_roles(self, num_players: int):
         """
@@ -175,13 +173,39 @@ class SecretMafiaEnv(ta.Env):
 
     def _phase_transition_player_prompts(self, new_phase):
         """ During a phase transition, provide relevant prompts to all players """
-        if new_phase == "Night-Mafia":
+        if new_phase == "Night-Mafia-Discussion":
+            # all mafia players receive a prompt to discuss their target
+            mafia_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Mafia" and pid in self.state.game_state["alive_players"]]
+            remaining_non_mafia = [pid for pid, role in self.state.game_state["player_roles"].items() if role!="Mafia" and pid in self.state.game_state["alive_players"]]
+            valid_targets = ", ".join([f"'[{rpid}]'" for rpid in remaining_non_mafia])
+            mafia_discussion_prompt = (
+                f"The Night phase has begun. As Mafia members, you must silently coordinate your target.\n"
+                f"You cannot speak or write messages - you can only point to your intended target.\n"
+                f"Use the format '[Player X]' to indicate your suggestion.\n"
+                f"Valid targets: {valid_targets}\n\n"
+                f"Remember:\n"
+                f"• You cannot write explanations or discuss\n"
+                f"• You can only point to a player\n"
+                f"• After this round, you will vote on the final target\n"
+                f"• If you don't agree with a suggestion, you can point to a different player\n"
+                f"• The player with the most suggestions will be the default target for voting\n"
+                f"• If you speak out loud, other players will hear you and know you're mafia"
+            )
+            # send observations to all relevant players
+            for pid in mafia_pids:
+                self.state.add_observation(from_id=ta.GAME_ID, to_id=pid, message=mafia_discussion_prompt)
+
+            # update new player orders - each mafia gets 2 turns to suggest
+            self.next_player_ids = mafia_pids * 2
+            random.shuffle(self.next_player_ids)
+
+        elif new_phase == "Night-Mafia":
             # all mafia players receive a prompt to vote whom to kill
             mafia_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Mafia" and pid in self.state.game_state["alive_players"]]
             remaining_non_mafia = [pid for pid, role in self.state.game_state["player_roles"].items() if role!="Mafia" and pid in self.state.game_state["alive_players"]]
             valid_votes = ", ".join([f"'[{rpid}]'" for rpid in remaining_non_mafia])
             mafia_observation = (
-                f"The Night phase has started, please vote who you would like to kill. "
+                f"The voting phase has begun. Please vote who you would like to kill. "
                 f"Only votes in the format '[Player X]' or '[X]' are valid."
                 f"Valid votes: {valid_votes}"
             )
@@ -190,10 +214,7 @@ class SecretMafiaEnv(ta.Env):
                 self.state.add_observation(from_id=ta.GAME_ID, to_id=pid, message=mafia_observation)
 
             # update new player orders
-
-            # initially next pids is just voting of mafia (so one mafia each)
-            self.next_player_ids = [pid for pid, role in self.state.game_state["player_roles"].items() if role == "Mafia" and pid in self.state.game_state["alive_players"]]
-            # shuffle order
+            self.next_player_ids = mafia_pids
             random.shuffle(self.next_player_ids)
 
         elif new_phase == "Night-Doctor":
@@ -270,7 +291,9 @@ class SecretMafiaEnv(ta.Env):
             current_phase = self.state.game_state["phase"]
             doctor_pid = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Doctor"][0]
             detective_pid = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Detective"][0]
-            if current_phase == "Night-Mafia":
+            if current_phase == "Night-Mafia-Discussion":
+                new_phase = "Night-Mafia"
+            elif current_phase == "Night-Mafia":
                 # check if doctor is still alive
                 if doctor_pid in self.state.game_state["alive_players"]:
                     # transition to doctor phase
@@ -343,7 +366,9 @@ class SecretMafiaEnv(ta.Env):
         current_pid = self.state.current_player_id
 
         # check game phase 
-        if self.state.game_state["phase"] == "Day-Discussion":
+        if self.state.game_state["phase"] == "Night-Mafia-Discussion":
+            self._night_mafia_discussion(current_pid=current_pid, action=action)
+        elif self.state.game_state["phase"] == "Day-Discussion":
             self._day_discussion(current_pid=current_pid, action=action)
 
         elif self.state.game_state["phase"] == "Day-Voting":
@@ -439,6 +464,15 @@ class SecretMafiaEnv(ta.Env):
             if not self.next_player_ids:
                 # evaluate votes and update observations accordingly
                 self.state.game_state["to_be_eliminated"] = self._evaluate_votes()
+                # if no majority vote, use the most suggested target from discussion
+                if self.state.game_state["to_be_eliminated"] is None and self.state.game_state["kill_suggestions"]:
+                    max_suggestions = max(self.state.game_state["kill_suggestions"].values())
+                    top_candidates = [pid for pid, count in self.state.game_state["kill_suggestions"].items() if count == max_suggestions]
+                    # Only kill if there's exactly one most suggested target
+                    if len(top_candidates) == 1:
+                        self.state.game_state["to_be_eliminated"] = top_candidates[0]
+                # clear suggestions for next night
+                self.state.game_state["kill_suggestions"] = {}
 
     def _night_doctor(self, current_pid, action):
         """ check who the doctor whould like to save """
@@ -475,5 +509,25 @@ class SecretMafiaEnv(ta.Env):
                 observation = f"Player {voted_pid} is NOT part of the Mafia"
 
             self.state.add_observation(from_id=ta.GAME_ID, to_id=current_pid, message=observation)
+
+    def _night_mafia_discussion(self, current_pid, action):
+        """ Handle mafia discussion phase - only allow pointing to targets """
+        # extract and validate target
+        match = self.voting_pattern.search(action)
+        if not match:
+            # raise invalid
+            self.state.set_invalid_move(player_id=current_pid, reason=f"The suggestion was not submitted in the correct format.")
+        
+        else:
+            target_pid = int(match.group(1))
+            # broadcast to all mafia players
+            mafia_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Mafia" and pid in self.state.game_state["alive_players"]]
+            for pid in mafia_pids:
+                self.state.add_observation(from_id=current_pid, to_id=pid, message=action)
+
+            # track suggestions for default target
+            if "kill_suggestions" not in self.state.game_state:
+                self.state.game_state["kill_suggestions"] = {}
+            self.state.game_state["kill_suggestions"][target_pid] = self.state.game_state["kill_suggestions"].get(target_pid, 0) + 1
 
 

@@ -22,7 +22,8 @@ dependencies = [
     "python-dotenv",
     "opencv-python",
     "websockets",
-    "mss"
+    "mss",
+    "fantasynames>=0.0.1",
 ]
 
 [project.urls]
