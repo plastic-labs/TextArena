@@ -15,7 +15,3 @@ class MemoryStrategy(ABC):
     def process_observation(self, observation: str) -> str:
         """Process observation with historical context."""
         pass
-
-class PlayerProfile(ABC):
-    def __init__(self, player_id: str):
-        self.player_id = player_id
