@@ -1,5 +1,6 @@
 # Agents
-from textarena.agents.basic_agents import (
+from .basic_agents import (
+    Agent,
     HumanAgent,
     OpenRouterAgent,
     GeminiAgent,
@@ -10,11 +11,13 @@ from textarena.agents.basic_agents import (
     AnthropicAgent,
     AsyncAnthropicAgent,
 )
+from .stateful_agents import HonchoAgent
 
 from textarena.agents import wrappers
 
 __all__ = [
     # agents
+    "Agent",
     "HumanAgent",
     "OpenRouterAgent",
     "GeminiAgent",
@@ -24,4 +27,5 @@ __all__ = [
     "AWSBedrockAgent",
     "AnthropicAgent",
     "AsyncAnthropicAgent",
+    "HonchoAgent",
 ]

@@ -22,7 +22,8 @@ dependencies = [
     "python-dotenv",
     "opencv-python",
     "websockets",
-    "mss"
+    "mss",
+    "honcho-ai>=0.0.19",
 ]
 
 [project.urls]
