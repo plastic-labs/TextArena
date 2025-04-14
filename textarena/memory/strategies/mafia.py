@@ -1,5 +1,6 @@
 from ..base import MemoryStrategy
 from textarena.agents import Agent
+from honcho import Honcho
 
 class MafiaMemoryStrategy(MemoryStrategy):
     def __init__(self, honcho: Honcho, app, user, session, base_agent: Agent):
