@@ -23,7 +23,6 @@ class SecretMafiaEnv(ta.Env):
         """
         self.mafia_ratio = mafia_ratio
         self.discussion_rounds = discussion_rounds
-        self.state = ta.State(num_players=num_players, min_players=5, max_players=15)
 
         # Role definitions
         self.roles = {
@@ -51,6 +50,7 @@ class SecretMafiaEnv(ta.Env):
 
     def reset(self, num_players: int, seed: Optional[int] = None):
         """ Reset the environment """
+        self.state = ta.State(num_players=num_players, min_players=5, max_players=15)
         
         # Initialize game state
         self._assign_roles(num_players)
