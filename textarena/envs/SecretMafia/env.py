@@ -21,6 +21,9 @@ class SecretMafiaEnv(ta.Env):
             mafia_ratio (float): Ratio of Mafia members to total players (default: 0.25)
             discussion_rounds (int): The number of discussion rounds
         """
+        self.mafia_ratio = mafia_ratio
+        self.discussion_rounds = discussion_rounds
+
         # Role definitions
         self.roles = {
             "Villager": {
@@ -224,7 +227,10 @@ class SecretMafiaEnv(ta.Env):
             valid_votes = ", ".join([f"'[{rpid}]'" for rpid in remaining_non_mafia])
             mafia_observation = (
                 f"The voting phase has begun. Please vote who you would like to kill. "
-                f"Only votes in the format '[Player X]' or '[X]' are valid."
+                f"Only votes in the format '[Player X]' or '[X]' are valid. "
+                f"Respond with your vote in the specified format and nothing else. "
+                f"Do not include any other text or comments."
+                f"The entirety of your response will be broadcast to all players."
                 f"Valid votes: {valid_votes}"
             )
             # send observations to all relevant players
