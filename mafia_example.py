@@ -1,10 +1,10 @@
 import textarena as ta
 import fantasynames as names
 import random
-from typing import Union
+from typing import Union, Tuple
 import os
 import json
-
+import argparse
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,7 +17,7 @@ load_dotenv()
 # Set Hugging Face cache directory to /raid/weights
 
 
-def create_player(player_id: int, use_local_model: bool = False) -> tuple[Union[ta.agents.OpenRouterAgent, ta.agents.HFLocalAgent], str]:
+def create_player(player_id: int, use_local_model: bool = False) -> Tuple[ta.Agent, str]:
     """
     Create a player with a random fantasy name and either Claude 3.5 Haiku or local Llama 3 model.
     
@@ -49,13 +49,14 @@ def create_player(player_id: int, use_local_model: bool = False) -> tuple[Union[
         )
     else:
         # Create the agent with Claude 3.5 Haiku
-        agent = ta.agents.OpenRouterAgent(model_name="anthropic/claude-3-7-sonnet")
+        # agent = ta.agents.OpenRouterAgent(model_name="meta-llama/llama-3.3-70b-instruct")
+        agent  = ta.agents.AnthropicAgent(model_name="claude-3-5-haiku-latest")
     
     player_name = f"{agent_name}"
     
     return agent, player_name
 
-def main():
+def main(await_input: bool = False):
     # Create 5 players
     agents = {}
     player_names = {}
@@ -78,16 +79,17 @@ def main():
 
     # Reset environment with 5 players
     env.reset(num_players=n_players)
+    env = ta.wrappers.CSVLoggerWrapper(env=env, log_dir="outputs/mafia_logs")  # Add CSV logger
     
     # Main game loop
     done = False
     while not done:
         player_id, observation = env.get_observation()
-        # print(f"Observation: {observation}")
         action = agents[player_id](observation)
-        # print(f"Player {player_id} took action: {action}")
-        done, info = env.step(action=action)
-        input("Press Enter to continue...")
+        step_result = env.step(action=action)
+        done = step_result[0]  # First element is the done flag
+        if await_input:
+            input("Press Enter to continue...")
     
     # Get final rewards
     rewards = env.close()
@@ -95,4 +97,7 @@ def main():
     print(f"Final rewards: {rewards}")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--await_input", type=bool, default=False)
+    args = parser.parse_args()
+    main(await_input=args.await_input)

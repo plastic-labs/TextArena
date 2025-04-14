@@ -23,6 +23,7 @@ class SecretMafiaEnv(ta.Env):
         """
         self.mafia_ratio = mafia_ratio
         self.discussion_rounds = discussion_rounds
+        self.state = ta.State(num_players=num_players, min_players=5, max_players=15)
 
         # Role definitions
         self.roles = {
@@ -50,7 +51,6 @@ class SecretMafiaEnv(ta.Env):
 
     def reset(self, num_players: int, seed: Optional[int] = None):
         """ Reset the environment """
-        self.state = ta.State(num_players=num_players, min_players=5, max_players=15)
         
         # Initialize game state
         self._assign_roles(num_players)
@@ -309,7 +309,9 @@ class SecretMafiaEnv(ta.Env):
                 f"Be careful about what you reveal and how you present yourself.\n"
                 f"Remember that other players will analyze your words and behavior.\n\n"
                 f"For the next {self.num_discussion_rounds} rounds, you can converse "
-                f"freely with the other players to decide who you ultimately want to vote out."
+                f"freely with the other players to decide who you ultimately want to vote out.\n\n"
+                f"Respond directly with your public message for the group discussion,\n\n"
+                f"without prefacing your public message with anything else."
             )
             self.state.add_observation(from_id=ta.GAME_ID, to_id=-1, message=discussion_observation)
             next_players = self.state.game_state["alive_players"].copy()
@@ -374,93 +376,51 @@ class SecretMafiaEnv(ta.Env):
                 # Fallback for any unexpected phase
                 new_phase = "Day-Private-Reflection"
 
-            print(f"DEBUG - Phase transition: from {current_phase} to {new_phase}")
             
             # Process eliminations only at specific destination phases
             if new_phase == "Day-Private-Reflection" and current_phase != "Day-Private-Reflection":
                 # Process night elimination (from Mafia kill) before Day-Private-Reflection
-                print("DEBUG - Processing night elimination")
                 tbe_pid = None
-                try:
-                    tbe_pid = self.state.game_state["to_be_eliminated"]
-                    if tbe_pid is None:
-                        observation = f"No player has been eliminated during the night."
-                        print("DEBUG - No player eliminated during night")
-                    else:
-                        observation = f"Player {tbe_pid} has been eliminated during the night."
-                        print(f"DEBUG - Player {tbe_pid} eliminated during night")
-                        # Remove player from alive_players
-                        try:
-                            if tbe_pid in self.state.game_state["alive_players"]:
-                                self.state.game_state["alive_players"].remove(tbe_pid)
-                                print(f"DEBUG - Removed player {tbe_pid} from alive_players")
-                            else:
-                                print(f"DEBUG - Player {tbe_pid} not in alive_players")
-                        except (TypeError, KeyError):
-                            print(f"DEBUG - Error accessing alive_players list")
-                    self.state.add_observation(from_id=ta.GAME_ID, to_id=-1, message=observation)
-                except (TypeError, KeyError):
-                    print("DEBUG - Error accessing to_be_eliminated")
+                tbe_pid = self.state.game_state["to_be_eliminated"]
+                if tbe_pid is None:
+                    observation = f"No player has been eliminated during the night."
+                else:
+                    observation = f"Player {tbe_pid} has been eliminated during the night."
+                    # Remove player from alive_players
+                    if tbe_pid in self.state.game_state["alive_players"]:
+                        self.state.game_state["alive_players"].remove(tbe_pid)
+                self.state.add_observation(from_id=ta.GAME_ID, to_id=-1, message=observation)
                 
                 # Reset votes and to_be_eliminated
-                try:
-                    self.state.game_state["votes"] = {}
-                    self.state.game_state["to_be_eliminated"] = None
-                    print("DEBUG - Reset votes and to_be_eliminated")
-                except (TypeError, KeyError):
-                    print("DEBUG - Error resetting votes and to_be_eliminated")
+                self.state.game_state["votes"] = {}
+                self.state.game_state["to_be_eliminated"] = None
                 
                 # Check winning conditions
                 self._check_winning_conditions()
             
             elif new_phase == "Night-Mafia-Discussion" and current_phase != "Night-Mafia-Discussion":
                 # Process day elimination (from voting) before Night-Mafia-Discussion
-                print("DEBUG - Processing day elimination")
                 tbe_pid = None
-                try:
-                    tbe_pid = self.state.game_state["to_be_eliminated"]
-                    if tbe_pid is None:
-                        observation = f"No player has been eliminated after voting."
-                        print("DEBUG - No player eliminated after voting")
-                    else:
-                        observation = f"Player {tbe_pid} has been eliminated after voting."
-                        print(f"DEBUG - Player {tbe_pid} eliminated after voting")
-                        # Remove player from alive_players
-                        try:
-                            if tbe_pid in self.state.game_state["alive_players"]:
-                                self.state.game_state["alive_players"].remove(tbe_pid)
-                                print(f"DEBUG - Removed player {tbe_pid} from alive_players")
-                            else:
-                                print(f"DEBUG - Player {tbe_pid} not in alive_players")
-                        except (TypeError, KeyError):
-                            print(f"DEBUG - Error accessing alive_players list")
-                    self.state.add_observation(from_id=ta.GAME_ID, to_id=-1, message=observation)
-                except (TypeError, KeyError):
-                    print("DEBUG - Error accessing to_be_eliminated")
+                tbe_pid = self.state.game_state["to_be_eliminated"]
+                if tbe_pid is None:
+                    observation = f"No player has been eliminated after voting."
+                else:
+                    observation = f"Player {tbe_pid} has been eliminated after voting."
+                    # Remove player from alive_players
+                    if tbe_pid in self.state.game_state["alive_players"]:
+                        self.state.game_state["alive_players"].remove(tbe_pid)
+                self.state.add_observation(from_id=ta.GAME_ID, to_id=-1, message=observation)
                 
                 # Reset votes and to_be_eliminated
-                try:
-                    self.state.game_state["votes"] = {}
-                    self.state.game_state["to_be_eliminated"] = None
-                    print("DEBUG - Reset votes and to_be_eliminated")
-                except (TypeError, KeyError):
-                    print("DEBUG - Error resetting votes and to_be_eliminated")
+                self.state.game_state["votes"] = {}
+                self.state.game_state["to_be_eliminated"] = None
                 
                 # Check winning conditions
                 self._check_winning_conditions()
 
             # Update the game phase and prepare for the next phase
-            try:
-                self.state.game_state["phase"] = new_phase
-                self._phase_transition_player_prompts(new_phase=new_phase)
-                print(f"DEBUG - After transition, phase: {new_phase}")
-            except (TypeError, KeyError):
-                print("DEBUG - Error updating game phase")
-
-            try:
-                print(f"DEBUG - After transition, alive players: {self.state.game_state['alive_players']}")
-            except (TypeError, KeyError):
-                print("DEBUG - Error accessing alive_players after transition")
+            self.state.game_state["phase"] = new_phase
+            self._phase_transition_player_prompts(new_phase=new_phase)
 
         if not self.next_player_ids:
             self._transition_current_pid()
@@ -472,31 +432,20 @@ class SecretMafiaEnv(ta.Env):
 
     def _check_winning_conditions(self):
         """ Check if the game has been won by either team """
-        try:
-            # winning condition 1, all mafia members are eliminated
-            alive_mafia_members = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Mafia" and pid in self.state.game_state["alive_players"]]
+        # winning condition 1, all mafia members are eliminated
+        alive_mafia_members = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Mafia" and pid in self.state.game_state["alive_players"]]
 
-            if not alive_mafia_members:
-                # villagers win
-                try:
-                    villager_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role!="Mafia"]
-                    reason = f"The villagers win by eliminating all members of the mafia."
-                    self.state.set_winners(player_ids=villager_pids, reason=reason)
-                    print("DEBUG - Village team wins (all mafia eliminated)")
-                except (TypeError, KeyError, IndexError) as e:
-                    print(f"DEBUG - Error determining village winners: {e}")
+        if not alive_mafia_members:
+            # villagers win
+            villager_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role!="Mafia"]
+            reason = f"The villagers win by eliminating all members of the mafia."
+            self.state.set_winners(player_ids=villager_pids, reason=reason)
 
-            if len(alive_mafia_members) >= len(self.state.game_state["alive_players"])/2:
-                # mafia wins
-                try:
-                    mafia_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Mafia"]
-                    reason = f"The Mafia wins by outnumbering the villagers"
-                    self.state.set_winners(player_ids=mafia_pids, reason=reason)
-                    print("DEBUG - Mafia team wins (outnumbered villagers)")
-                except (TypeError, KeyError, IndexError) as e:
-                    print(f"DEBUG - Error determining mafia winners: {e}")
-        except (TypeError, KeyError, ValueError, ZeroDivisionError) as e:
-            print(f"DEBUG - Error checking win conditions: {e}")
+        if len(alive_mafia_members) >= len(self.state.game_state["alive_players"])/2:
+            # mafia wins
+            mafia_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Mafia"]
+            reason = f"The Mafia wins by outnumbering the villagers"
+            self.state.set_winners(player_ids=mafia_pids, reason=reason)
 
 
     def step(self, action: str) -> Tuple[bool, ta.Info]:
@@ -540,27 +489,21 @@ class SecretMafiaEnv(ta.Env):
         for voter, target in self.state.game_state["votes"].items():
             vote_counts[target] = vote_counts.get(target, 0) + 1
         
-        print(f"DEBUG - Vote counts: {vote_counts}")
         
         # reset votes
         self.state.game_state["votes"] = {}
         if not vote_counts:
-            print("DEBUG - No votes counted, returning None")
             return None
 
         # Find player(s) with most votes
         max_votes = max(vote_counts.values())
         top_candidates = [pid for pid, count in vote_counts.items() if count == max_votes]
         
-        print(f"DEBUG - Max votes: {max_votes}")
-        print(f"DEBUG - Top candidates: {top_candidates}")
 
         # If there's a tie (more than one player with the most votes), return None
         if len(top_candidates) > 1:
-            print("DEBUG - Tie detected, returning None")
             return None
         else:
-            print(f"DEBUG - Player {top_candidates[0]} has the most votes")
             return top_candidates[0]
 
     def _day_private_reflection(self, current_pid, action):
@@ -584,8 +527,6 @@ class SecretMafiaEnv(ta.Env):
             # count vote and broadcast
             self.state.game_state["votes"][current_pid] = voted_pid
             
-            print(f"DEBUG - Day vote: Player {current_pid} voted for Player {voted_pid}")
-            print(f"DEBUG - Current votes: {self.state.game_state['votes']}")
 
             # add to observations
             self.state.add_observation(from_id=current_pid, to_id=-1, message=action)
@@ -594,18 +535,11 @@ class SecretMafiaEnv(ta.Env):
             # This can help identify if the alive_players list is being modified
             alive_before = list(self.state.game_state["alive_players"])
             
-            print(f"DEBUG - Alive players before checking votes: {alive_before}")
-            print(f"DEBUG - Next player IDs: {self.next_player_ids}")
 
             # check if everybody has voted
             if not self.next_player_ids:
-                print("DEBUG - All players have voted, evaluating votes")
                 # evaluate votes and update observations accordingly 
                 self.state.game_state["to_be_eliminated"] = self._evaluate_votes()
-                print(f"DEBUG - After evaluation, to_be_eliminated: {self.state.game_state['to_be_eliminated']}")
-                print(f"DEBUG - Alive players after evaluation: {self.state.game_state['alive_players']}")
-            else:
-                print(f"DEBUG - Waiting for {len(self.next_player_ids)} more players to vote")
 
     def _night_mafia(self, current_pid, action):
         """ basically the same as day phase voting """
@@ -619,8 +553,6 @@ class SecretMafiaEnv(ta.Env):
             voted_pid = int(match.group(1))
             self.state.game_state["votes"][current_pid] = voted_pid
             
-            print(f"DEBUG - Night vote: Mafia player {current_pid} voted to kill Player {voted_pid}")
-            print(f"DEBUG - Current mafia votes: {self.state.game_state['votes']}")
 
             # count vote and broadcast to all mafia players
             mafia_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Mafia" and pid in self.state.game_state["alive_players"]]
@@ -629,28 +561,18 @@ class SecretMafiaEnv(ta.Env):
 
             # check if everybody has voted
             if not self.next_player_ids:
-                print("DEBUG - All mafia have voted, evaluating votes")
                 # evaluate votes and update observations accordingly
                 self.state.game_state["to_be_eliminated"] = self._evaluate_votes()
-                print(f"DEBUG - After mafia vote evaluation, to_be_eliminated: {self.state.game_state['to_be_eliminated']}")
                 # if no majority vote, use the most suggested target from discussion
                 if self.state.game_state["to_be_eliminated"] is None and self.state.game_state["kill_suggestions"]:
-                    print(f"DEBUG - No majority vote, using suggestions: {self.state.game_state['kill_suggestions']}")
                     max_suggestions = max(self.state.game_state["kill_suggestions"].values())
                     top_candidates = [pid for pid, count in self.state.game_state["kill_suggestions"].items() if count == max_suggestions]
-                    print(f"DEBUG - Top suggestion candidates: {top_candidates}")
                     # Only kill if there's exactly one most suggested target
                     if len(top_candidates) == 1:
                         self.state.game_state["to_be_eliminated"] = top_candidates[0]
-                        print(f"DEBUG - Using suggested target: Player {top_candidates[0]}")
-                    else:
-                        print(f"DEBUG - Tie in suggestions, no target selected")
                 # clear suggestions for next night
                 self.state.game_state["kill_suggestions"] = {}
-                print(f"DEBUG - Cleared kill_suggestions")
-                print(f"DEBUG - Final to_be_eliminated after mafia phase: {self.state.game_state['to_be_eliminated']}")
-            else:
-                print(f"DEBUG - Waiting for {len(self.next_player_ids)} more mafia to vote")
+
 
     def _night_doctor(self, current_pid, action):
         """ check who the doctor whould like to save """
@@ -663,32 +585,13 @@ class SecretMafiaEnv(ta.Env):
         else:
             voted_pid = int(match.group(1))
             
-            try:
-                # DEBUG - Print doctor's vote and current to_be_eliminated
-                print(f"DEBUG - Doctor vote: Doctor chose to save Player {voted_pid}")
-                print(f"DEBUG - Current to_be_eliminated: {self.state.game_state['to_be_eliminated']}")
-                
-                # check if voted_pid is to_be_eliminated
-                self.state.add_observation(from_id=current_pid, to_id=current_pid, message=action)
-                
-                if self.state.game_state["to_be_eliminated"] is not None and voted_pid == self.state.game_state["to_be_eliminated"]:
-                    # save
-                    self.state.game_state["to_be_eliminated"] = None
-                    print(f"DEBUG - Doctor successfully saved Player {voted_pid}!")
-                else:
-                    print(f"DEBUG - Doctor's save was ineffective (didn't match to_be_eliminated)")
-            except (TypeError, KeyError) as e:
-                print(f"DEBUG - Error in doctor's action: {e}")
-                self.state.add_observation(from_id=current_pid, to_id=current_pid, message=action)
-                
-            # Print current observations for doctor
-            try:
-                print("DEBUG - Doctor's Observations:")
-                for obs in self.state.observations[current_pid]:
-                    print(f"  From: {obs[0]}, Message: {obs[1][:50]}...")
-                print("END DEBUG")
-            except (KeyError, TypeError, IndexError) as e:
-                print(f"DEBUG - Error printing doctor's observations: {e}")
+            # check if voted_pid is to_be_eliminated
+            self.state.add_observation(from_id=current_pid, to_id=current_pid, message=action)
+            
+            if self.state.game_state["to_be_eliminated"] is not None and voted_pid == self.state.game_state["to_be_eliminated"]:
+                # save
+                self.state.game_state["to_be_eliminated"] = None
+
 
     def _night_detective(self, current_pid, action):
         """ can check status of a single player """
