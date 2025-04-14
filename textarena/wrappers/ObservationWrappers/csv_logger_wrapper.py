@@ -32,11 +32,6 @@ class CSVLoggerWrapper(ObservationWrapper):
             writer = csv.writer(f)
             writer.writerow(['timestamp', 'from_id', 'to_id', 'message'])
         
-        # Store the original add_observation method
-        self.original_add_observation = self.env.state.add_observation
-        
-        # Override the state's add_observation method
-        self.env.state.add_observation = self._wrapped_add_observation
     
     def _log_observation(self, from_id: int, to_id: int, message: str):
         """Helper method to log an observation to CSV"""
@@ -61,3 +56,14 @@ class CSVLoggerWrapper(ObservationWrapper):
         This method is required by ObservationWrapper but we don't need to modify observations.
         """
         return observation
+
+    def reset(self, **kwargs):
+        """
+        Reset the environment and log the reset event.
+        """
+        self.env.reset(**kwargs)
+        # Store the original add_observation method
+        self.original_add_observation = self.env.state.add_observation
+        
+        # Override the state's add_observation method
+        self.env.state.add_observation = self._wrapped_add_observation

@@ -21,9 +21,6 @@ class SecretMafiaEnv(ta.Env):
             mafia_ratio (float): Ratio of Mafia members to total players (default: 0.25)
             discussion_rounds (int): The number of discussion rounds
         """
-        self.mafia_ratio = mafia_ratio
-        self.discussion_rounds = discussion_rounds
-
         # Role definitions
         self.roles = {
             "Villager": {

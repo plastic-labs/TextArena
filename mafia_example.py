@@ -76,10 +76,10 @@ def main(await_input: bool = False):
         env=env,
         player_names=player_names,
     )
+    env = ta.wrappers.CSVLoggerWrapper(env=env, log_dir="outputs/mafia_logs")  # Add CSV logger
 
     # Reset environment with 5 players
     env.reset(num_players=n_players)
-    env = ta.wrappers.CSVLoggerWrapper(env=env, log_dir="outputs/mafia_logs")  # Add CSV logger
     
     # Main game loop
     done = False
