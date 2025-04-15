@@ -43,5 +43,4 @@ def format_xml_prompt(base_prompt: str, tag: str, instruction: str = "") -> str:
     )
     if instruction:
         xml_instruction += f"\n{instruction}\n"
-    
     return base_prompt + xml_instruction

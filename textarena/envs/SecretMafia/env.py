@@ -339,7 +339,9 @@ class SecretMafiaEnv(ta.Env):
                 f"Be careful about what you reveal and how you present yourself.\n"
                 f"Remember that other players will analyze your words and behavior.\n\n"
                 f"For the next {self.num_discussion_rounds} rounds, you can converse "
-                f"freely with the other players to decide who you ultimately want to vote out."
+                f"freely with the other players to decide who you ultimately want to vote out.\n\n"
+                f"Each player will have {self.num_discussion_rounds} turns to discuss.\n"
+                f"The order of discussion will be randomized."
             )
             discussion_observation = format_xml_prompt(
                 base_prompt=base_prompt,
@@ -572,18 +574,21 @@ class SecretMafiaEnv(ta.Env):
             return
         
         voted_pid = int(match.group(1))
-        # count vote and broadcast
+        # count vote
         if self.state.game_state is not None and "votes" in self.state.game_state:
             self.state.game_state["votes"][current_pid] = voted_pid
-        
-        # add to observations
-        self.state.add_observation(from_id=current_pid, to_id=-1, message=content)
 
         # check if everybody has voted
         if not self.next_player_ids:
-            # evaluate votes and update observations accordingly 
+            # evaluate votes
             if self.state.game_state is not None and "votes" in self.state.game_state:
                 self.state.game_state["to_be_eliminated"] = self._evaluate_votes()
+                
+                # Broadcast all votes at once
+                vote_summary = "[GAME] Voting Results:\n"
+                for voter, target in self.state.game_state["votes"].items():
+                    vote_summary += f"- Player {voter} voted for Player {target}\n"
+                self.state.add_observation(from_id=ta.GAME_ID, to_id=-1, message=vote_summary)
 
     def _night_mafia(self, current_pid, action):
         """ basically the same as day phase voting """
