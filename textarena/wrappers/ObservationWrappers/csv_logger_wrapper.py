@@ -31,7 +31,6 @@ class CSVLoggerWrapper(ObservationWrapper):
         with open(self.log_file, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(['timestamp', 'from_id', 'to_id', 'message'])
-        
     
     def _log_observation(self, from_id: int, to_id: int, message: str):
         """Helper method to log an observation to CSV"""

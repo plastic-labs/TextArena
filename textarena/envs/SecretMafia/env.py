@@ -2,6 +2,16 @@ import re, random
 from typing import Any, Dict, Optional, Tuple, List, Set
 
 import textarena as ta
+from textarena.utils.xml_utils import parse_xml_content, format_xml_prompt
+
+# XML tags for different types of actions
+TAG_DISCUSSION = "discussion"
+TAG_VOTE = "vote"
+TAG_MAFIA_VOTE = "mafia_vote"
+TAG_MAFIA_SUGGEST = "mafia_suggest"
+TAG_PROTECT = "protect"
+TAG_INVESTIGATE = "investigate"
+TAG_REFLECT = "reflect"
 
 """
 TODO:
@@ -120,7 +130,7 @@ class SecretMafiaEnv(ta.Env):
             f"    • Villager: Regular villager with no special abilities. Goal is to identify and eliminate Mafia members.\n"
             f"    • Mafia: During the night, can secretly coordinate (without talking) with other Mafia members to eliminate a player.\n"
             f"    • Doctor: Can protect one player from elimination each night.\n"
-            f"    • Detective: Can investigate one player each night to learn if they are Mafia.\n\n"
+            f"    • Detective: Can investigate one player each night to learn if they are a Mafia.\n\n"
             f"The game starts with the Night phase, where special roles take their actions\n"
             f"    • The Mafia can coordinate (without talking) with other Mafia members and vote to eliminate a player\n"
             f"    • If there is a tie, no one is eliminated\n"
@@ -199,10 +209,9 @@ class SecretMafiaEnv(ta.Env):
             mafia_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Mafia" and pid in self.state.game_state["alive_players"]]
             remaining_non_mafia = [pid for pid, role in self.state.game_state["player_roles"].items() if role!="Mafia" and pid in self.state.game_state["alive_players"]]
             valid_targets = ", ".join([f"'[{rpid}]'" for rpid in remaining_non_mafia])
-            mafia_discussion_prompt = (
+            base_prompt = (
                 f"The Night phase has begun. As Mafia members, you must silently coordinate your target.\n"
                 f"You cannot speak or write messages - you can only point to your intended target.\n"
-                f"Use the format '[Player X]' to indicate your suggestion.\n"
                 f"Valid targets: {valid_targets}\n\n"
                 f"Remember:\n"
                 f"• You cannot write explanations or discuss\n"
@@ -210,7 +219,12 @@ class SecretMafiaEnv(ta.Env):
                 f"• After this round, you will vote on the final target\n"
                 f"• If you don't agree with a suggestion, you can point to a different player\n"
                 f"• The player with the most suggestions will be the default target for voting\n"
-                f"• If you speak out loud by saying anything other than '[Player X]', other players will hear you and know you're mafia"
+                f"• If you speak out loud by saying anything other than pointing to a target, other players will hear you and know you're mafia"
+            )
+            mafia_discussion_prompt = format_xml_prompt(
+                base_prompt=base_prompt,
+                tag=TAG_MAFIA_SUGGEST,
+                instruction=f"Use the format <{TAG_MAFIA_SUGGEST}>[Player X]</{TAG_MAFIA_SUGGEST}> to indicate your suggestion."
             )
             # send observations to all relevant players
             for pid in mafia_pids:
@@ -225,13 +239,14 @@ class SecretMafiaEnv(ta.Env):
             mafia_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Mafia" and pid in self.state.game_state["alive_players"]]
             remaining_non_mafia = [pid for pid, role in self.state.game_state["player_roles"].items() if role!="Mafia" and pid in self.state.game_state["alive_players"]]
             valid_votes = ", ".join([f"'[{rpid}]'" for rpid in remaining_non_mafia])
-            mafia_observation = (
+            base_prompt = (
                 f"The voting phase has begun. Please vote who you would like to kill. "
-                f"Only votes in the format '[Player X]' or '[X]' are valid. "
-                f"Respond with your vote in the specified format and nothing else. "
-                f"Do not include any other text or comments."
-                f"The entirety of your response will be broadcast to all players."
                 f"Valid votes: {valid_votes}"
+            )
+            mafia_observation = format_xml_prompt(
+                base_prompt=base_prompt,
+                tag=TAG_MAFIA_VOTE,
+                instruction=f"Use the format <{TAG_MAFIA_VOTE}>[Player X]</{TAG_MAFIA_VOTE}> to cast your vote. Do not include any other text."
             )
             # send observations to all relevant players
             for pid in mafia_pids:
@@ -249,15 +264,18 @@ class SecretMafiaEnv(ta.Env):
             # check if doctor is still alive
             # if d_pid in self.state.game_state["alive_players"]:
             valid_options = ", ".join([f"'[{rpid}]'" for rpid in valid_player_options])
-            doctor_observation = (
+            base_prompt = (
                 f"We are in the Night phase. Since you are the doctor, you can decide which player to save."
-                f"Simply reply in the following format: '[Player X]' or '[X]'"
-                f"valid options: {valid_options}"
+                f"Valid options: {valid_options}"
+            )
+            doctor_observation = format_xml_prompt(
+                base_prompt=base_prompt,
+                tag=TAG_PROTECT,
+                instruction=f"Use the format <{TAG_PROTECT}>[Player X]</{TAG_PROTECT}> to protect a player."
             )
             self.state.add_observation(from_id=ta.GAME_ID, to_id=d_pid, message=doctor_observation)
 
             self.next_player_ids = [d_pid]
-
 
         elif new_phase == "Night-Detective":
             # get detective pid 
@@ -267,14 +285,17 @@ class SecretMafiaEnv(ta.Env):
             # check if detective is still alive 
             if d_pid in self.state.game_state["alive_players"]:
                 valid_options = ", ".join([f"'[{rpid}]'" for rpid in valid_player_options])
-                detective_observation = (
+                base_prompt = (
                     f"We are in the Night phase. Since you are the detective, you can decide which player to investigate."
-                    f"Simply reply in the following format: '[Player X]' or '[X]'"
-                    f"valid options: {valid_options}"
+                    f"Valid options: {valid_options}"
+                )
+                detective_observation = format_xml_prompt(
+                    base_prompt=base_prompt,
+                    tag=TAG_INVESTIGATE,
+                    instruction=f"Use the format <{TAG_INVESTIGATE}>[Player X]</{TAG_INVESTIGATE}> to investigate a player."
                 )
                 self.state.add_observation(from_id=ta.GAME_ID, to_id=d_pid, message=detective_observation)
                 self.next_player_ids = [d_pid]
-
 
         elif new_phase == "Day-Private-Reflection":
             # First send private reflection prompt to each player
@@ -297,7 +318,12 @@ class SecretMafiaEnv(ta.Env):
                     f"   - How can you maintain or change their perception?\n\n"
                     f"Take your time to think through these points carefully."
                 )
-                self.state.add_observation(from_id=ta.GAME_ID, to_id=pid, message=reflection_prompt)
+                reflection_observation = format_xml_prompt(
+                    base_prompt=reflection_prompt,
+                    tag=TAG_REFLECT,
+                    instruction=f"Use the format <{TAG_REFLECT}>Your reflection here</{TAG_REFLECT}> to record your thoughts."
+                )
+                self.state.add_observation(from_id=ta.GAME_ID, to_id=pid, message=reflection_observation)
 
             # Set up player order for reflection
             next_players = self.state.game_state["alive_players"].copy()
@@ -306,28 +332,34 @@ class SecretMafiaEnv(ta.Env):
 
         elif new_phase == "Day-Discussion":
             # Send public discussion prompt
-            discussion_observation = (
+            base_prompt = (
                 f"PUBLIC DISCUSSION PHASE - ALL MESSAGES WILL BE SEEN BY EVERYONE\n\n"
                 f"IMPORTANT: Everything you say in this phase will be visible to ALL players.\n"
                 f"Be careful about what you reveal and how you present yourself.\n"
                 f"Remember that other players will analyze your words and behavior.\n\n"
                 f"For the next {self.num_discussion_rounds} rounds, you can converse "
-                f"freely with the other players to decide who you ultimately want to vote out.\n\n"
-                f"Respond directly with your public message for the group discussion,\n\n"
-                f"without prefacing your public message with anything else."
+                f"freely with the other players to decide who you ultimately want to vote out."
+            )
+            discussion_observation = format_xml_prompt(
+                base_prompt=base_prompt,
+                tag=TAG_DISCUSSION,
+                instruction=f"Use the format <{TAG_DISCUSSION}>Your message here</{TAG_DISCUSSION}> to participate in the discussion."
             )
             self.state.add_observation(from_id=ta.GAME_ID, to_id=-1, message=discussion_observation)
             next_players = self.state.game_state["alive_players"].copy()
             random.shuffle(next_players)
             self.next_player_ids = next_players * self.num_discussion_rounds
 
-
         elif new_phase == "Day-Voting":
             valid_options = ", ".join([f"'[{rpid}]'" for rpid in self.state.game_state['alive_players']])
-            voting_observation = (
+            base_prompt = (
                 f"The voting phase has began. On your turn, submit your vote for which player you want to vote out."
-                f"Simply reply in the following format: '[Player X]' or '[X]'"
-                f"valid options: {valid_options}"
+                f"Valid options: {valid_options}"
+            )
+            voting_observation = format_xml_prompt(
+                base_prompt=base_prompt,
+                tag=TAG_VOTE,
+                instruction=f"Use the format <{TAG_VOTE}>[Player X]</{TAG_VOTE}> to cast your vote."
             )
             self.state.add_observation(from_id=ta.GAME_ID, to_id=-1, message=voting_observation)
             self.next_player_ids = self.state.game_state["alive_players"].copy()
@@ -511,132 +543,162 @@ class SecretMafiaEnv(ta.Env):
 
     def _day_private_reflection(self, current_pid, action):
         """ Handle private reflection - messages are only sent to the player themselves """
-        self.state.add_observation(from_id=current_pid, to_id=current_pid, message=action)
+        content = parse_xml_content(action, TAG_REFLECT, include_tags=True)
+        if content is None:
+            self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_REFLECT}> tags")
+            return
+        self.state.add_observation(from_id=current_pid, to_id=current_pid, message=content)
 
     def _day_discussion(self, current_pid, action):
         """ Handle public discussion - all messages are broadcast to everyone """
-        self.state.add_observation(from_id=current_pid, to_id=-1, message=action)
+        content = parse_xml_content(action, TAG_DISCUSSION, include_tags=True)
+        if content is None:
+            self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_DISCUSSION}> tags")
+            return
+        self.state.add_observation(from_id=current_pid, to_id=-1, message=content)
 
     def _day_voting(self, current_pid, action):
         """ validate voting and add to votes until no next pid """
+        content = parse_xml_content(action, TAG_VOTE, include_tags=True)
+        if content is None:
+            self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_VOTE}> tags")
+            return
+            
         # extract and validate vote 
-        match = self.voting_pattern.search(action)
+        match = self.voting_pattern.search(content)
         if not match:
-            # raise invalid 
             self.state.set_invalid_move(player_id=current_pid, reason=f"The vote was not submitted in the correct format.")
+            return
         
-        else:
-            voted_pid = int(match.group(1))
-            # count vote and broadcast
+        voted_pid = int(match.group(1))
+        # count vote and broadcast
+        if self.state.game_state is not None and "votes" in self.state.game_state:
             self.state.game_state["votes"][current_pid] = voted_pid
-            
+        
+        # add to observations
+        self.state.add_observation(from_id=current_pid, to_id=-1, message=content)
 
-            # add to observations
-            self.state.add_observation(from_id=current_pid, to_id=-1, message=action)
-
-            # Store a copy of the alive players before checking if everyone voted
-            # This can help identify if the alive_players list is being modified
-            alive_before = list(self.state.game_state["alive_players"])
-            
-
-            # check if everybody has voted
-            if not self.next_player_ids:
-                # evaluate votes and update observations accordingly 
+        # check if everybody has voted
+        if not self.next_player_ids:
+            # evaluate votes and update observations accordingly 
+            if self.state.game_state is not None and "votes" in self.state.game_state:
                 self.state.game_state["to_be_eliminated"] = self._evaluate_votes()
 
     def _night_mafia(self, current_pid, action):
         """ basically the same as day phase voting """
-        # extract and validate vote
-        match = self.voting_pattern.search(action)
-        if not match:
-            # raise invalid
-            self.state.set_invalid_move(player_id=current_pid, reason=f"The vote was not submitted in the correct format.")
-        
-        else:
-            voted_pid = int(match.group(1))
-            self.state.game_state["votes"][current_pid] = voted_pid
+        content = parse_xml_content(action, TAG_MAFIA_VOTE, include_tags=True)
+        if content is None:
+            self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_MAFIA_VOTE}> tags")
+            return
             
-
-            # count vote and broadcast to all mafia players
+        # extract and validate vote
+        match = self.voting_pattern.search(content)
+        if not match:
+            self.state.set_invalid_move(player_id=current_pid, reason=f"The vote was not submitted in the correct format.")
+            return
+        
+        voted_pid = int(match.group(1))
+        if self.state.game_state is not None and "votes" in self.state.game_state:
+            self.state.game_state["votes"][current_pid] = voted_pid
+        
+        # count vote and broadcast to all mafia players
+        if self.state.game_state is not None and "player_roles" in self.state.game_state and "alive_players" in self.state.game_state:
             mafia_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Mafia" and pid in self.state.game_state["alive_players"]]
             for pid in mafia_pids:
-                self.state.add_observation(from_id=current_pid, to_id=pid, message=action)
+                self.state.add_observation(from_id=current_pid, to_id=pid, message=content)
 
-            # check if everybody has voted
-            if not self.next_player_ids:
-                # evaluate votes and update observations accordingly
+        # check if everybody has voted
+        if not self.next_player_ids:
+            # evaluate votes and update observations accordingly
+            if self.state.game_state is not None and "votes" in self.state.game_state:
                 self.state.game_state["to_be_eliminated"] = self._evaluate_votes()
                 # if no majority vote, use the most suggested target from discussion
-                if self.state.game_state["to_be_eliminated"] is None and self.state.game_state["kill_suggestions"]:
+                if self.state.game_state["to_be_eliminated"] is None and "kill_suggestions" in self.state.game_state:
                     max_suggestions = max(self.state.game_state["kill_suggestions"].values())
                     top_candidates = [pid for pid, count in self.state.game_state["kill_suggestions"].items() if count == max_suggestions]
                     # Only kill if there's exactly one most suggested target
                     if len(top_candidates) == 1:
                         self.state.game_state["to_be_eliminated"] = top_candidates[0]
                 # clear suggestions for next night
-                self.state.game_state["kill_suggestions"] = {}
-
+                if "kill_suggestions" in self.state.game_state:
+                    self.state.game_state["kill_suggestions"] = {}
 
     def _night_doctor(self, current_pid, action):
         """ check who the doctor whould like to save """
+        content = parse_xml_content(action, TAG_PROTECT, include_tags=True)
+        if content is None:
+            self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_PROTECT}> tags")
+            return
+            
         # extract and validate vote
-        match = self.voting_pattern.search(action)
+        match = self.voting_pattern.search(content)
         if not match:
-            # raise invalid
             self.state.set_invalid_move(player_id=current_pid, reason=f"The action was not submitted in the correct format.")
+            return
         
-        else:
-            voted_pid = int(match.group(1))
-            
-            # check if voted_pid is to_be_eliminated
-            self.state.add_observation(from_id=current_pid, to_id=current_pid, message=action)
-            
-            if self.state.game_state["to_be_eliminated"] is not None and voted_pid == self.state.game_state["to_be_eliminated"]:
-                # save
-                self.state.game_state["to_be_eliminated"] = None
+        voted_pid = int(match.group(1))
+        
+        # check if voted_pid is to_be_eliminated
+        self.state.add_observation(from_id=current_pid, to_id=current_pid, message=content)
+        
+        if self.state.game_state is not None and "to_be_eliminated" in self.state.game_state and self.state.game_state["to_be_eliminated"] is not None and voted_pid == self.state.game_state["to_be_eliminated"]:
+            # save
+            self.state.game_state["to_be_eliminated"] = None
 
 
     def _night_detective(self, current_pid, action):
         """ can check status of a single player """
-        match = self.voting_pattern.search(action)
-
+        content = parse_xml_content(action, TAG_INVESTIGATE, include_tags=True)
+        if content is None:
+            self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_INVESTIGATE}> tags")
+            return
+            
+        match = self.voting_pattern.search(content)
         if not match:
-            # raise invalid 
             self.state.set_invalid_move(player_id=current_pid, reason=f"The action was not submitted in the correct format.")
+            return
         
-        else:
-            voted_pid = int(match.group(1))
-            mafia_set = [pid for pid,role in self.state.game_state["player_roles"].items() if role == "Mafia"]
+        voted_pid = int(match.group(1))
+        if self.state.game_state is not None and "player_roles" in self.state.game_state:
+            mafia_set = [pid for pid, role in self.state.game_state["player_roles"].items() if role == "Mafia"]
             if voted_pid in mafia_set:
                 observation = f"Player {voted_pid} is part of the Mafia"
             else:
                 observation = f"Player {voted_pid} is NOT part of the Mafia"
 
             self.state.add_observation(from_id=ta.GAME_ID, to_id=current_pid, message=observation)
-            self.state.game_state["detective_inspected"].append(voted_pid)
-            not_detective_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role != "Detective"]
-            not_detective_observation = "The detective has seen an undisclosed player's role"
-            for pid in not_detective_pids:
-                self.state.add_observation(from_id=ta.GAME_ID, to_id=pid, message=not_detective_observation)
+            if "detective_inspected" in self.state.game_state:
+                self.state.game_state["detective_inspected"].append(voted_pid)
+            if "player_roles" in self.state.game_state:
+                not_detective_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role != "Detective"]
+                not_detective_observation = "The detective has seen an undisclosed player's role"
+                for pid in not_detective_pids:
+                    self.state.add_observation(from_id=ta.GAME_ID, to_id=pid, message=not_detective_observation)
 
     def _night_mafia_discussion(self, current_pid, action):
         """ Handle mafia discussion phase - only allow pointing to targets """
+        content = parse_xml_content(action, TAG_MAFIA_SUGGEST, include_tags=True)
+        if content is None:
+            self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_MAFIA_SUGGEST}> tags")
+            return
+            
         # extract and validate target
-        match = self.voting_pattern.search(action)
+        match = self.voting_pattern.search(content)
         if not match:
-            # raise invalid
             self.state.set_invalid_move(player_id=current_pid, reason=f"The suggestion was not submitted in the correct format.")
+            return
         
-        else:
-            target_pid = int(match.group(1))
-            # broadcast to all mafia players
+        target_pid = int(match.group(1))
+        # broadcast to all mafia players
+        if self.state.game_state is not None and "player_roles" in self.state.game_state and "alive_players" in self.state.game_state:
             mafia_pids = [pid for pid, role in self.state.game_state["player_roles"].items() if role=="Mafia" and pid in self.state.game_state["alive_players"]]
             for pid in mafia_pids:
-                self.state.add_observation(from_id=current_pid, to_id=pid, message=action)
+                self.state.add_observation(from_id=current_pid, to_id=pid, message=content)
 
             # track suggestions for default target
             if "kill_suggestions" not in self.state.game_state:
                 self.state.game_state["kill_suggestions"] = {}
-            self.state.game_state["kill_suggestions"][target_pid] = self.state.game_state["kill_suggestions"].get(target_pid, 0) + 1
+            if "kill_suggestions" in self.state.game_state:
+                self.state.game_state["kill_suggestions"][target_pid] = self.state.game_state["kill_suggestions"].get(target_pid, 0) + 1
 
 
