@@ -1,6 +1,7 @@
 import re
 from typing import Optional
 
+
 def parse_xml_content(text: str, tag: str, include_tags: bool = False) -> Optional[str]:
     """
     Extract content between XML tags.
@@ -13,17 +14,32 @@ def parse_xml_content(text: str, tag: str, include_tags: bool = False) -> Option
     Returns:
         The content between the tags (with tags if include_tags=True), or None if no matching tags found
     """
-    # Find all matches of the pattern
-    pattern = f"<{tag}>(.*?)</{tag}>"
-    matches = list(re.finditer(pattern, text, re.DOTALL))
+    # Find all opening tags
+    opening_pattern = f"<{tag}>"
+    opening_matches = list(re.finditer(opening_pattern, text))
     
-    if matches:
-        # Take the last match if there are multiple
-        match = matches[-1]
-        if include_tags:
-            return match.group(0).strip()  # Return the entire match including tags
-        return match.group(1).strip()  # Return just the content
-    return None
+    if not opening_matches:
+        return None
+        
+    # Find all closing tags
+    closing_pattern = f"</{tag}>"
+    closing_matches = list(re.finditer(closing_pattern, text))
+    
+    if not closing_matches:
+        return None
+        
+    # Take the last opening tag
+    last_opening = opening_matches[-1]
+    
+    # Take the last closing tag
+    last_closing = closing_matches[-1]
+    
+    # Extract the content between last opening and last closing
+    content = text[last_opening.end():last_closing.start()].strip()
+    
+    if include_tags:
+        return f"<{tag}>{content}</{tag}>"
+    return content
 
 def format_xml_prompt(base_prompt: str, tag: str, instruction: str = "") -> str:
     """

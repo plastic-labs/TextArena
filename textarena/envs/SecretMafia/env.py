@@ -575,7 +575,9 @@ class SecretMafiaEnv(ta.Env):
         
         voted_pid = int(match.group(1))
         # count vote
-        if self.state.game_state is not None and "votes" in self.state.game_state:
+        if self.state.game_state is not None:
+            if "votes" not in self.state.game_state:
+                self.state.game_state["votes"] = {}
             self.state.game_state["votes"][current_pid] = voted_pid
 
         # check if everybody has voted

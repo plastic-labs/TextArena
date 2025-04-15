@@ -70,7 +70,7 @@ def main(await_input: bool = False):
         player_names[i] = player_name
 
     # Initialize environment from subset and wrap it
-    env = ta.make(env_id="SecretMafia-v0", mafia_ratio=0.25, discussion_rounds=3)
+    env = ta.make(env_id="SecretMafia-v0", mafia_ratio=0.25, discussion_rounds=2)
     env = ta.wrappers.LLMObservationWrapper(env=env)
     env = ta.wrappers.SimpleRenderWrapper(
         env=env,
