@@ -23,7 +23,6 @@ __all__ = [
     "RenderWrapper",
     "ActionWrapper",
     "AgentWrapper",
-
     # registration
     "make",
     "register",
