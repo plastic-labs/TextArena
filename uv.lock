@@ -1289,7 +1289,7 @@ requires-dist = [
     { name = "chess" },
     { name = "fantasynames", specifier = ">=0.0.1" },
     { name = "ipython", specifier = ">=8.35.0" },
-    { name = "honcho-ai", specifier = ">=0.0.19" },
+    { name = "honcho-ai", specifier = ">=0.1.0" },
     { name = "mss" },
     { name = "networkx" },
     { name = "nltk" },

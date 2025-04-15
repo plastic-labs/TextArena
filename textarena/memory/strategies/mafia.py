@@ -23,11 +23,12 @@ class MafiaMemoryStrategy(MemoryStrategy):
             context += f"{sender}: {msg.content}\n"
             
             # Get metamessages for this message
-            metamessages = self.honcho.apps.users.sessions.messages.metamessages.list(
+            metamessages = self.honcho.apps.users.metamessages.list(
                 app_id=self.app.id,
                 user_id=self.user.id,
                 session_id=self.session.id,
-                message_id=msg.id
+                message_id=msg.id,
+                metamessage_type="private_thought"
             )
             
             # Add private thoughts if any
@@ -35,7 +36,16 @@ class MafiaMemoryStrategy(MemoryStrategy):
                 context += f"  (Private thought): {meta.content}\n"
         
         # Combine with current observation
-        return f"{context}\nCurrent observation:\n{observation}"
+        pre_rumination_context = f"{context}\nCurrent observation:\n{observation}"
+        
+        # Generate private thought
+        private_thought = self.ruminate(pre_rumination_context)
+        
+        # Store the private thought for use in process_action
+        self._store("private_thought", private_thought)
+
+        # Return the augmented observation
+        return f"{pre_rumination_context}\n\n{private_thought}"
 
     def ruminate(self, observation: str) -> str:
         """Let the agent think privately about the observation."""
@@ -52,25 +62,30 @@ class MafiaMemoryStrategy(MemoryStrategy):
         )
         
         # Get private thoughts from the base agent
-        private_thought = self.base_agent(private_prompt)
-        
-        # Create a private thought message
-        thought = self.honcho.apps.users.sessions.messages.create(
+        return self.base_agent(private_prompt)
+
+    def process_action(self, action: str) -> None:
+        """Process and store the action with its private thought."""
+        # Write the action message
+        message = self.honcho.apps.users.sessions.messages.create(
             app_id=self.app.id,
             user_id=self.user.id,
             session_id=self.session.id,
-            content=private_thought,
+            content=action,
             is_user=True
         )
         
-        # Add a metamessage with the private thought
-        self.honcho.apps.users.sessions.messages.metamessages.create(
-            app_id=self.app.id,
-            user_id=self.user.id,
-            session_id=self.session.id,
-            message_id=thought.id,
-            content=private_thought
-        )
+        # Get the stored private thought
+        if private_thought := self._get("private_thought"):
+            # Write the private thought as a metamessage
+            self.honcho.apps.users.metamessages.create(
+                app_id=self.app.id,
+                user_id=self.user.id,
+                session_id=self.session.id,
+                message_id=message.id,
+                content=private_thought,
+                metamessage_type="private_thought"
+            )
         
-        return private_thought
+        # Context is automatically cleared by the base class
     
