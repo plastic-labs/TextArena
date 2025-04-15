@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Tuple, Optional, Callable
 import random
 
 GAME_ID = -1  # literal for use in game messages
+DEBUG_ID = 9999  # literal for use in game messages
 Message = Tuple[int, str]  # maps role to content
 Observations = dict[int, List[Message]]  # consists of the message seen by each player after the action
 Rewards = Dict[int, int]  # maps player ID to reward
@@ -140,7 +141,7 @@ class State:
                 self.observations[pid].append((from_id, message))
         else:
             assert (
-                to_id in self.observations
+                to_id in self.observations or to_id == DEBUG_ID
             ), f"The provided 'to_id' {to_id} does not exists. ({list(self.observations.keys())})"
             self.observations[to_id].append((from_id, message))
 
