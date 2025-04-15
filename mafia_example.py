@@ -60,7 +60,7 @@ def main(await_input: bool = False):
     # Create 5 players
     agents = {}
     player_names = {}
-    n_players = 6
+    n_players = 7
     
     # Create 4 players with OpenRouter and 1 with local model
     for i in range(n_players):

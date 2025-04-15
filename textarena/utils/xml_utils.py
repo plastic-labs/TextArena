@@ -13,9 +13,13 @@ def parse_xml_content(text: str, tag: str, include_tags: bool = False) -> Option
     Returns:
         The content between the tags (with tags if include_tags=True), or None if no matching tags found
     """
+    # Find all matches of the pattern
     pattern = f"<{tag}>(.*?)</{tag}>"
-    match = re.search(pattern, text, re.DOTALL)
-    if match:
+    matches = list(re.finditer(pattern, text, re.DOTALL))
+    
+    if matches:
+        # Take the last match if there are multiple
+        match = matches[-1]
         if include_tags:
             return match.group(0).strip()  # Return the entire match including tags
         return match.group(1).strip()  # Return just the content
