@@ -54,9 +54,14 @@ def format_xml_prompt(base_prompt: str, tag: str, instruction: str = "") -> str:
         The formatted prompt with XML instructions
     """
     xml_instruction = (
-        f"\n\nPlease provide your response in XML format using the <{tag}> tag. "
-        f"For example: <{tag}>Your response here</{tag}>\n"
+        f"\n\nIMPORTANT: Your response MUST include content wrapped in <{tag}> tags. "
+        f"Any response without these tags will be considered invalid and may result in penalties.\n\n"
+        f"Format your response like this:\n"
+        f"<{tag}>Your actual response here</{tag}>\n\n"
+        f"You may include additional text before or after the tags if you wish.\n"
+        f"Only the content within the <{tag}> tags will be used as your actual response.\n"
+        f"Make sure to include exactly one complete <{tag}>...</{tag}> pair in your response.\n"
     )
     if instruction:
-        xml_instruction += f"\n{instruction}\n"
+        xml_instruction += f"\nAdditional instructions:\n{instruction}\n"
     return base_prompt + xml_instruction
