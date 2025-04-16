@@ -3,7 +3,7 @@
 from textarena.core import (
     Env, Wrapper, ObservationWrapper,
     RenderWrapper, ActionWrapper, Agent, AgentWrapper,
-    State, Message, Observations, Rewards, Info, GAME_ID,
+    State, Message, Observations, Rewards, Info, GAME_ID, DEBUG_ID,
 )
 from textarena.envs.registration import make, register, pprint_registry_detailed, check_env_exists
 
@@ -23,6 +23,7 @@ __all__ = [
     "RenderWrapper",
     "ActionWrapper",
     "AgentWrapper",
+    "DEBUG_ID",
     # registration
     "make",
     "register",

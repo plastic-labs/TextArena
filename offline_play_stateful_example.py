@@ -49,13 +49,13 @@ for game_num in range(num_games):
     env = ta.wrappers.SimpleRenderWrapper(
         env=env,
         player_names={
-            0: "GPT-4o-mini", 
-            1: "claude-3.5-haiku", 
-            2: "claude-3.5-haiku", 
-            3: "claude-3.5-haiku", 
-            4: "claude-3.5-haiku", 
-            5: "claude-3.5-haiku", 
-            6: "claude-3.5-haiku"
+            0: "Vince-GPT-4o-mini", 
+            1: "Ben-claude-3.5-haiku", 
+            2: "Dani-claude-3.5-haiku", 
+            3: "Vineeth-claude-3.5-haiku", 
+            4: "Wes-claude-3.5-haiku", 
+            5: "Courtland-claude-3.5-haiku", 
+            6: "Lili-claude-3.5-haiku"
         },
     )
     
