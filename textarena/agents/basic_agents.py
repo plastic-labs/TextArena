@@ -398,6 +398,15 @@ class HFLocalAgent(Agent):
             model=self.model, 
             tokenizer=self.tokenizer, 
             )
+
+        def update_model(model: AutoModelForCausalLM):
+            self.model = model
+            self.pipeline = pipeline(
+                'text-generation',
+                max_new_tokens=max_new_tokens,
+                model=self.model, 
+                tokenizer=self.tokenizer, 
+                )
     
     def __call__(self, observation: str) -> str:
         """
