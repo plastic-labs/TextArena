@@ -139,9 +139,11 @@ class State:
         if to_id == -1:
             for pid in range(self.num_players): #self.observations:
                 self.observations[pid].append((from_id, message))
+        elif to_id == DEBUG_ID:
+            print(f"[DEBUG] {message}")
         else:
             assert (
-                to_id in self.observations or to_id == DEBUG_ID
+                to_id in self.observations 
             ), f"The provided 'to_id' {to_id} does not exists. ({list(self.observations.keys())})"
             self.observations[to_id].append((from_id, message))
 

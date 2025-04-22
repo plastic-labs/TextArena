@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, Tuple, List, Set
 
 import textarena as ta
 from textarena.utils.xml_utils import parse_xml_content, format_xml_prompt
+from textarena.core import DEBUG_ID
 
 # XML tags for different types of actions
 TAG_DISCUSSION = "discussion"
@@ -545,7 +546,7 @@ class SecretMafiaEnv(ta.Env):
         content = parse_xml_content(action, TAG_REFLECT, include_tags=True)
         if content is None:
             self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_REFLECT}> tags")
-            self.state.add_observation(from_id=current_pid, to_id=ta.DEBUG_ID, message=f"[DEBUG] Invalid reflection action: {action}")
+            self.state.add_observation(from_id=current_pid, to_id=DEBUG_ID, message=f"[DEBUG] Invalid reflection action: {action}")
             return
         self.state.add_observation(from_id=current_pid, to_id=current_pid, message=content)
 
@@ -554,7 +555,7 @@ class SecretMafiaEnv(ta.Env):
         content = parse_xml_content(action, TAG_DISCUSSION, include_tags=True)
         if content is None:
             self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_DISCUSSION}> tags")
-            self.state.add_observation(from_id=current_pid, to_id=ta.DEBUG_ID, message=f"[DEBUG] Invalid discussion action: {action}")
+            self.state.add_observation(from_id=current_pid, to_id=DEBUG_ID, message=f"[DEBUG] Invalid discussion action: {action}")
             return
         self.state.add_observation(from_id=current_pid, to_id=-1, message=content)
 
@@ -563,14 +564,14 @@ class SecretMafiaEnv(ta.Env):
         content = parse_xml_content(action, TAG_VOTE, include_tags=True)
         if content is None:
             self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_VOTE}> tags")
-            self.state.add_observation(from_id=current_pid, to_id=ta.DEBUG_ID, message=f"[DEBUG] Invalid vote action: {action}")
+            self.state.add_observation(from_id=current_pid, to_id=DEBUG_ID, message=f"[DEBUG] Invalid vote action: {action}")
             return
             
         # extract and validate vote 
         match = self.voting_pattern.search(content)
         if not match:
             self.state.set_invalid_move(player_id=current_pid, reason=f"The vote was not submitted in the correct format.")
-            self.state.add_observation(from_id=current_pid, to_id=ta.DEBUG_ID, message=f"[DEBUG] Invalid vote format: {action}")
+            self.state.add_observation(from_id=current_pid, to_id=DEBUG_ID, message=f"[DEBUG] Invalid vote format: {action}")
             return
         
         voted_pid = int(match.group(1))
@@ -597,14 +598,14 @@ class SecretMafiaEnv(ta.Env):
         content = parse_xml_content(action, TAG_MAFIA_VOTE, include_tags=True)
         if content is None:
             self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_MAFIA_VOTE}> tags")
-            self.state.add_observation(from_id=current_pid, to_id=ta.DEBUG_ID, message=f"[DEBUG] Invalid mafia vote action: {action}")
+            self.state.add_observation(from_id=current_pid, to_id=DEBUG_ID, message=f"[DEBUG] Invalid mafia vote action: {action}")
             return
             
         # extract and validate vote
         match = self.voting_pattern.search(content)
         if not match:
             self.state.set_invalid_move(player_id=current_pid, reason=f"The vote was not submitted in the correct format.")
-            self.state.add_observation(from_id=current_pid, to_id=ta.DEBUG_ID, message=f"[DEBUG] Invalid mafia vote format: {action}")
+            self.state.add_observation(from_id=current_pid, to_id=DEBUG_ID, message=f"[DEBUG] Invalid mafia vote format: {action}")
             return
         
         voted_pid = int(match.group(1))
@@ -638,14 +639,14 @@ class SecretMafiaEnv(ta.Env):
         content = parse_xml_content(action, TAG_PROTECT, include_tags=True)
         if content is None:
             self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_PROTECT}> tags")
-            self.state.add_observation(from_id=current_pid, to_id=ta.DEBUG_ID, message=f"[DEBUG] Invalid protect action: {action}")
+            self.state.add_observation(from_id=current_pid, to_id=DEBUG_ID, message=f"[DEBUG] Invalid protect action: {action}")
             return
             
         # extract and validate vote
         match = self.voting_pattern.search(content)
         if not match:
             self.state.set_invalid_move(player_id=current_pid, reason=f"The action was not submitted in the correct format.")
-            self.state.add_observation(from_id=current_pid, to_id=ta.DEBUG_ID, message=f"[DEBUG] Invalid protect format: {action}")
+            self.state.add_observation(from_id=current_pid, to_id=DEBUG_ID, message=f"[DEBUG] Invalid protect format: {action}")
             return
         
         voted_pid = int(match.group(1))
@@ -663,13 +664,13 @@ class SecretMafiaEnv(ta.Env):
         content = parse_xml_content(action, TAG_INVESTIGATE, include_tags=True)
         if content is None:
             self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_INVESTIGATE}> tags")
-            self.state.add_observation(from_id=current_pid, to_id=ta.DEBUG_ID, message=f"[DEBUG] Invalid investigate action: {action}")
+            self.state.add_observation(from_id=current_pid, to_id=DEBUG_ID, message=f"[DEBUG] Invalid investigate action: {action}")
             return
             
         match = self.voting_pattern.search(content)
         if not match:
             self.state.set_invalid_move(player_id=current_pid, reason=f"The action was not submitted in the correct format.")
-            self.state.add_observation(from_id=current_pid, to_id=ta.DEBUG_ID, message=f"[DEBUG] Invalid investigate format: {action}")
+            self.state.add_observation(from_id=current_pid, to_id=DEBUG_ID, message=f"[DEBUG] Invalid investigate format: {action}")
             return
         
         voted_pid = int(match.group(1))
@@ -694,14 +695,14 @@ class SecretMafiaEnv(ta.Env):
         content = parse_xml_content(action, TAG_MAFIA_SUGGEST, include_tags=True)
         if content is None:
             self.state.set_invalid_move(player_id=current_pid, reason=f"Response must be wrapped in <{TAG_MAFIA_SUGGEST}> tags")
-            self.state.add_observation(from_id=current_pid, to_id=ta.DEBUG_ID, message=f"[DEBUG] Invalid mafia suggest action: {action}")
+            self.state.add_observation(from_id=current_pid, to_id=DEBUG_ID, message=f"[DEBUG] Invalid mafia suggest action: {action}")
             return
             
         # extract and validate target
         match = self.voting_pattern.search(content)
         if not match:
             self.state.set_invalid_move(player_id=current_pid, reason=f"The suggestion was not submitted in the correct format.")
-            self.state.add_observation(from_id=current_pid, to_id=ta.DEBUG_ID, message=f"[DEBUG] Invalid mafia suggest format: {action}")
+            self.state.add_observation(from_id=current_pid, to_id=DEBUG_ID, message=f"[DEBUG] Invalid mafia suggest format: {action}")
             return
         
         target_pid = int(match.group(1))

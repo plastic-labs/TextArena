@@ -6,6 +6,7 @@ import os
 import json
 import argparse
 from dotenv import load_dotenv
+import torch
 
 load_dotenv()
 
@@ -16,6 +17,19 @@ load_dotenv()
 
 # Set Hugging Face cache directory to /raid/weights
 
+# Track the current device index for cycling
+current_device_index = 0
+
+def get_next_device():
+    """Get the next available GPU device in a round-robin fashion."""
+    global current_device_index
+    if not torch.cuda.is_available():
+        return "cpu"
+    
+    num_devices = torch.cuda.device_count()
+    device = f"cuda:{current_device_index}"
+    current_device_index = (current_device_index + 1) % num_devices
+    return device
 
 def create_player(player_id: int, use_local_model: bool = False) -> Tuple[ta.Agent, str]:
     """
@@ -41,10 +55,14 @@ def create_player(player_id: int, use_local_model: bool = False) -> Tuple[ta.Age
     agent_name = name_generator()
     
     if use_local_model:
+        # Get the next available device
+        device = get_next_device()
+        print(f"Creating agent on device: {device}")
+        
         # Create the agent with Llama 3 8B-Instruct from Hugging Face
         agent = ta.agents.HFLocalAgent(
-            model_name="meta-llama/Llama-3.2-3B-Instruct",
-            device="cuda",  # or "cpu" if no GPU available
+            model_name="Qwen/Qwen2.5-1.5B-Instruct",
+            device=device,
             quantize=True  # Use 8-bit quantization to reduce memory usage
         )
     else:
@@ -64,7 +82,7 @@ def main(await_input: bool = False):
     
     # Create 4 players with OpenRouter and 1 with local model
     for i in range(n_players):
-        use_local_model = False
+        use_local_model = True
         agent, player_name = create_player(i, use_local_model)
         agents[i] = agent
         player_names[i] = player_name
