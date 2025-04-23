@@ -1,7 +1,7 @@
 import asyncio
 from abc import ABC, abstractmethod
 import os, time
-from typing import Optional 
+from typing import Optional, Any
 
 from textarena.core import Agent
 import textarena as ta 
@@ -352,17 +352,36 @@ class OpenAIAgent(Agent):
 
 class HFLocalAgent(Agent):
     """ Hugging Face local agent class that uses the Hugging Face Transformers library """
-    def __init__(self, model_name: str, device: str = "auto", quantize: bool = False, max_new_tokens: int = 1024):
+    def __init__(
+        self, 
+        model_name: Optional[str] = None,
+        model: Optional[Any] = None,
+        tokenizer: Optional[Any] = None,
+        device: str = "auto", 
+        quantize: bool = False, 
+        max_new_tokens: int = 1024
+    ):
         """
         Initialize the Hugging Face local agent.
         
         Args:
-            model_name (str): The name of the model.
+            model_name (Optional[str]): The name of the model to load from Hugging Face.
+            model (Optional[Any]): A pre-loaded Hugging Face model.
+            tokenizer (Optional[Any]): A pre-loaded Hugging Face tokenizer.
             device (str): Device to use for model inference (default: "auto").
             quantize (bool): Whether to load the model in 8-bit quantized format (default: False).
+            max_new_tokens (int): Maximum number of new tokens to generate.
+            
+        Raises:
+            ValueError: If both model_name and model are provided, or if neither is provided.
         """
         super().__init__()
         
+        if model_name is not None and model is not None:
+            raise ValueError("Cannot provide both model_name and model. Please provide only one.")
+        if model_name is None and model is None:
+            raise ValueError("Must provide either model_name or model.")
+            
         try:
             from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
         except ImportError:
@@ -371,42 +390,87 @@ class HFLocalAgent(Agent):
                 "Install it with: pip install transformers"
             )
             
-        ## Initialize the Hugging Face model and tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_name, 
-            )
+        self.device = device
+        self.quantize = quantize
+        self.max_new_tokens = max_new_tokens
+        self.system_prompt = STANDARD_GAME_PROMPT
         
-        if quantize:
+        # Initialize model and tokenizer
+        if model_name is not None:
+            self._load_model_from_name(model_name)
+        else:
+            self.model = model
+            self.tokenizer = tokenizer or AutoTokenizer.from_pretrained(model.config._name_or_path)
+            
+        # Initialize the pipeline
+        self._init_pipeline()
+    
+    def _load_model_from_name(self, model_name: str):
+        """Load model and tokenizer from model name."""
+        from transformers import AutoTokenizer, AutoModelForCausalLM
+        
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        
+        if self.quantize:
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_name, 
                 load_in_8bit=True,
-                device_map=device,
-                )
+                device_map=self.device,
+            )
         else:
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_name,
-                device_map=device,
-                )
-
-
-        self.system_prompt = STANDARD_GAME_PROMPT
-
-        ## Initialize the Hugging Face pipeline
+                device_map=self.device,
+            )
+    
+    def _init_pipeline(self):
+        """Initialize the text generation pipeline."""
+        from transformers import pipeline
+        
         self.pipeline = pipeline(
             'text-generation',
-            max_new_tokens=max_new_tokens,
+            max_new_tokens=self.max_new_tokens,
             model=self.model, 
             tokenizer=self.tokenizer, 
-            )
-
-        def update_model(model: AutoModelForCausalLM):
-            self.model = model
-            self.pipeline = pipeline(
-                'text-generation',
-                max_new_tokens=max_new_tokens,
-                model=self.model, 
-                tokenizer=self.tokenizer, 
-                )
+        )
+    
+    def update_model(
+        self, 
+        new_model: Optional[Any] = None, 
+        new_model_name: Optional[str] = None,
+        new_tokenizer: Optional[Any] = None,
+        clear_gpu: bool = True
+    ):
+        """
+        Update the model and/or tokenizer with new ones.
+        
+        Args:
+            new_model (Optional[Any]): New model to use.
+            new_model_name (Optional[str]): New model name to load.
+            new_tokenizer (Optional[Any]): New tokenizer to use.
+            clear_gpu (bool): Whether to clear GPU memory before loading new model.
+            
+        Raises:
+            ValueError: If both new_model and new_model_name are provided.
+        """
+        if new_model is not None and new_model_name is not None:
+            raise ValueError("Cannot provide both new_model and new_model_name. Please provide only one.")
+            
+        if clear_gpu:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                del self.model
+                del self.tokenizer
+                del self.pipeline
+        
+        if new_model_name is not None:
+            self._load_model_from_name(new_model_name)
+        elif new_model is not None:
+            self.model = new_model
+            self.tokenizer = new_tokenizer or self.tokenizer
+            
+        self._init_pipeline()
     
     def __call__(self, observation: str) -> str:
         """
