@@ -54,6 +54,12 @@ class LLMObservationWrapper(ObservationWrapper):
 
         return self._convert_obs_to_str(player_id=player_id)
 
+    def reset(self, num_players: int, seed: Optional[int]=None):
+        super().reset(num_players, seed)
+        self.full_observations = {}
+
+
+class LLMObservationWrapper(ObservationWrapper):
 
     
 class DiplomacyObservationWrapper(LLMObservationWrapper):
