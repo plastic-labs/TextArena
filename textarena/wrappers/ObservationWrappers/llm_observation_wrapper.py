@@ -59,9 +59,6 @@ class LLMObservationWrapper(ObservationWrapper):
         self.full_observations = {}
 
 
-class LLMObservationWrapper(ObservationWrapper):
-
-    
 class DiplomacyObservationWrapper(LLMObservationWrapper):
     def __init__(self, env: ta.Env):
         super().__init__(env)
