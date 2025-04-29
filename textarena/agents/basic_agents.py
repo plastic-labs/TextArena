@@ -3,8 +3,16 @@ from abc import ABC, abstractmethod
 import os, time
 from typing import Optional, Any
 
+try: from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, GenerationConfig
+except ImportError:
+    raise ImportError(
+        "Transformers library is required for HFLocalAgent. "
+        "Install it with: pip install transformers"
+    )
+
 from textarena.core import Agent
 import textarena as ta 
+
 
 __all__ = [
     "HumanAgent",
@@ -17,6 +25,7 @@ __all__ = [
     "AnthropicAgent",
 ]
 
+DEFAULT_TEMPERATURE = 0.9
 
 STANDARD_GAME_PROMPT = "You are a competitive game player. Make sure you read the game instructions carefully, and always follow the required format."
     
@@ -359,7 +368,9 @@ class HFLocalAgent(Agent):
         tokenizer: Optional[Any] = None,
         device: str = "auto", 
         quantize: bool = False, 
-        max_new_tokens: int = 1024
+        max_new_tokens: int = 1024,
+        sample: bool = True,
+        temperature: float = DEFAULT_TEMPERATURE,
     ):
         """
         Initialize the Hugging Face local agent.
@@ -382,13 +393,6 @@ class HFLocalAgent(Agent):
         if model_name is None and model is None:
             raise ValueError("Must provide either model_name or model.")
             
-        try:
-            from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
-        except ImportError:
-            raise ImportError(
-                "Transformers library is required for HFLocalAgent. "
-                "Install it with: pip install transformers"
-            )
             
         self.device = device
         self.quantize = quantize
@@ -404,6 +408,25 @@ class HFLocalAgent(Agent):
             
         # Initialize the pipeline
         self._init_pipeline()
+
+        # Initialize the generation config
+        if sample:
+            self.generation_config = GenerationConfig(
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                do_sample=True,
+                bos_token_id=self.tokenizer.bos_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
+                pad_token_id=self.tokenizer.pad_token_id,
+            )
+        else:
+            self.generation_config = GenerationConfig(
+                max_new_tokens=max_new_tokens, 
+                do_sample=False,
+                bos_token_id=self.tokenizer.bos_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
+                pad_token_id=self.tokenizer.pad_token_id,
+            )
     
     def _load_model_from_name(self, model_name: str):
         """Load model and tokenizer from model name."""
@@ -432,6 +455,7 @@ class HFLocalAgent(Agent):
             max_new_tokens=self.max_new_tokens,
             model=self.model, 
             tokenizer=self.tokenizer, 
+            generation_config=self.generation_config
         )
     
     def update_model(
@@ -488,6 +512,7 @@ class HFLocalAgent(Agent):
                 self.system_prompt+"\n"+observation, 
                 num_return_sequences=1, 
                 return_full_text=False,
+                generate_kwargs={"generation_config": self.generation_config}
             )
             # Extract and return the text output
             action = response[0]['generated_text'].strip()
