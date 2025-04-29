@@ -406,8 +406,6 @@ class HFLocalAgent(Agent):
             self.model = model
             self.tokenizer = tokenizer or AutoTokenizer.from_pretrained(model.config._name_or_path)
             
-        # Initialize the pipeline
-        self._init_pipeline()
 
         # Initialize the generation config
         if sample:
@@ -427,6 +425,9 @@ class HFLocalAgent(Agent):
                 eos_token_id=self.tokenizer.eos_token_id,
                 pad_token_id=self.tokenizer.pad_token_id,
             )
+
+        # Initialize the pipeline
+        self._init_pipeline()
     
     def _load_model_from_name(self, model_name: str):
         """Load model and tokenizer from model name."""
