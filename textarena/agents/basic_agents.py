@@ -513,7 +513,6 @@ class HFLocalAgent(Agent):
                 self.system_prompt+"\n"+observation, 
                 num_return_sequences=1, 
                 return_full_text=False,
-                generate_kwargs={"generation_config": self.generation_config}
             )
             # Extract and return the text output
             action = response[0]['generated_text'].strip()
